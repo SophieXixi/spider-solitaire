@@ -1,50 +1,41 @@
 module Main where
+import Definition
+import Action
 
-data State = State InternalState [Action]  -- internal_state available_actions
-         deriving (Ord, Eq, Show)
+countRemaining:: [[Card]] -> Int
+countRemaining lst = length (filter (not . null) lst)
 
-data Result = EndOfGame Double State    -- end of game: value, starting state
-            | ContinueGame State        -- continue with new state
-         deriving (Eq, Show)
+displayPiles:: [Card] -> [Char]
+displayPiles [] = ['\n']
+displayPiles ((num, visible):t)
+   | visible = show num ++ " " ++ displayPiles t
+   | otherwise = "* " ++ displayPiles t
 
-type Game = Action -> State -> Result
+display:: State -> IO ()
+display game = do
+   let rem = "remaining: " ++ show (countRemaining(remaining (gameState game)))
+   let cards = "piles: \n" ++ concatMap displayPiles (piles (gameState game))
+   putStrLn rem
+   putStrLn cards
 
-type Player = State -> Action
+main:: IO ()
+main = do 
+   putStrLn "welcome!"
+   let initGame = State { gameState = initg, actions = [] }
+   finalstate <- play initGame
+   putStrLn "game over!"
 
--- Spider
-
-type Card = (Int, Bool)
-
--- data Card = Card Int Bool
-
-type Pile = Int
-
-type Position = (Pile, Int) -- (which pile, which index in pile)
-
--- arguments: 10 piles, reserve, number of foundation piles completed, current selected card position
-data InternalState = InternalState [[Card]] [[Card]] Int (Maybe Position)
-
-data Action = Choose Position
-            | Move Pile
-            | Deal
-
-
---- Helper methods
-
--- generateInitialState :: State
-
--- tryToCompleteFoundationPile :: InternalState -> InternalState
-
--- -- first Position is from position, second Pile is target pile
--- moveCards :: InternalState -> Position -> Pile -> InternalState
-
-
--- -- 3 methods above to be completed by William
--- -- 3 methods below to be completed by Sophie
-
-
--- dealCards :: InternalState -> InternalState
-
--- canChoose :: State -> Position -> Bool
-
--- getAvailableActions :: Action -> InternalState -> [Action]
+play:: State -> IO State
+play game = 
+   do
+      display game
+      putStrLn "enter an action"
+      act <- getLine
+      case act of
+         "deal" -> do
+            let newstate = dealCards (gameState game)
+            putStrLn "dealing cards"
+            play (game { gameState = newstate})
+         _ -> do
+            putStrLn "invalid move"
+            return game
