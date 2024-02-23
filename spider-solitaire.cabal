@@ -62,7 +62,7 @@ executable spider-solitaire
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules: Action, Definition, GUI
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -71,7 +71,9 @@ executable spider-solitaire
     build-depends:
         base ^>=4.17.2.1,
         random-fu ^>=0.3.0.1,
-        mwc-random ^>= 0.15.0.2
+        mwc-random ^>= 0.15.0.2,
+        gloss,
+        GLUT
 
     -- Directories containing source files.
     hs-source-dirs:   app
