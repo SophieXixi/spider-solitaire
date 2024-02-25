@@ -141,11 +141,12 @@ inPileXRange clickX startX  index =
 -- check whether the clicked Y coordinate is within the Y range of a certain deck
 findCardIndex :: Float -> Float -> [Card] -> Int -> Maybe Int
 findCardIndex clickY startY pile index =
-    if null pile then Nothing
-    else
-        let cardTopY = startY - fromIntegral index * cardSpacing
-        in if clickY < cardTopY && clickY >= cardTopY - cardSpacing then Just index
-           else findCardIndex clickY startY (tail pile) (index + 1)
+    let totalCards = length pile
+        cardTopY = startY - fromIntegral index * cardSpacing - cardSpacing
+    in if index >= totalCards then Nothing
+       else if clickY >= cardTopY && clickY < cardTopY + cardHeight
+            then Just (totalCards - index - 1)
+            else findCardIndex clickY startY pile (index + 1)
 
 -- show position info
 drawSelectionInfo :: InternalState -> Picture
