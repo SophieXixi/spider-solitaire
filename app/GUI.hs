@@ -6,6 +6,7 @@ import Graphics.Gloss.Interface.Pure.Game
 import Definition
 import Action
 import Data.Maybe
+import Debug.Trace
 
 -- Specify the content on a card
 showRank :: Int -> String
@@ -92,8 +93,9 @@ handleEvent event state@(State { gameState = internalState }) =
                         else
                             case position internalState of
                                 Just oldPos ->
-                                    let newState = moveCards internalState oldPos (fst pos)
-                                    in state { gameState = newState { position = Nothing } }
+                                    if canActionBePerformed internalState (Move (fst pos))
+                                      then state { gameState = (moveCards internalState oldPos (fst pos)) { position = Nothing } }
+                                      else state { gameState = internalState { position = Nothing }}
                                 Nothing -> state
                     Nothing -> state
         _ -> state
@@ -128,7 +130,7 @@ findClickPosition ((index, pile):rest) clickX clickY startX startY =
     if inPileXRange clickX startX index then
         let cardIndex = findCardIndex clickY startY (reverse pile) 0
         in case cardIndex of
-            Just ci -> Just (index, ci)
+            Just ci -> trace ("ClickPosition: "++(show (index, ci))) (Just (index, ci))
             Nothing -> findClickPosition rest clickX clickY startX startY
     else findClickPosition rest clickX clickY startX startY
 

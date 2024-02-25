@@ -239,17 +239,27 @@ distributedCards [] _ = []
 distributedCards _ [] = []
 distributedCards ((num, visible):t) (hp:tp) = ((num, True):hp) : distributedCards t tp
 
+
+-- Returns true iff the list of cards are continuous and visible
+isContinuous :: [Card] -> Bool
+isContinuous [] = True
+isContinuous [(val,up)] = up
+isContinuous ((val,up):(nval,nup):r) = up && ((val + 1) == nval) && (isContinuous ((nval,nup):r))
+
 -- given the state of the game, and the target position of the card, return true if the card can be moved, and false otherwise
 -- assume the position is valid
 -- the card can be moved if: 
 --      it is the first one of one pile from bottom up (the first elem in the list)
 --      all the cards before it (in the list) are continuous
 canChoose :: InternalState -> Position -> Bool
-canChoose game (column, row)
-    | row == 0 = True
-    | otherwise = trace ("display: " ++ show list) comparePile list 0 row 
-    where 
-        list = getColumn (piles game) column
+-- canChoose game (column, row)
+--     | row == 0 = True
+--     | otherwise = trace ("display: " ++ show list) comparePile list 0 row 
+--     where 
+--         list = getColumn (piles game) column
+canChoose state (col,row) =
+  let cards = (piles state) !! col
+  in (row < (length cards)) && isContinuous (take (row+1) cards)
 
 getColumn:: [[Card]] -> Int -> [Card]
 getColumn [] _ = []
