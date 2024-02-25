@@ -5,7 +5,9 @@ import Graphics.Gloss
 import Graphics.Gloss.Interface.Pure.Game
 import Definition
 import Action
+import Data.Maybe
 
+-- Specify the content on a card
 showRank :: Int -> String
 showRank rank
   | rank == 1 = "A"
@@ -15,107 +17,156 @@ showRank rank
   | rank == 13 = "K"
   | otherwise = error "Invalid rank"
 
+-- Show a card
 drawCard :: Card -> Picture
 drawCard (rank, faceUp) =
   if faceUp then
     pictures [
-      color cardColor $ rectangleSolid width height,
-      color borderColor $ rectangleWire width height,
-      translate (-width * 0.5 + 10) (height * 0.5 - 20) $ scale 0.15 0.15 $ color textColor $ text (showRank rank)
+      color cardColor $ rectangleSolid cardWidth cardHeight,
+      color borderColor $ rectangleWire cardWidth cardHeight,
+      translate (-35) 40 $ scale 0.15 0.15 $ color textColor $ text (showRank rank)
     ]
   else
     pictures [
-      color backColor $ rectangleSolid width height,
-      color borderColor $ rectangleWire width height
+      color backColor $ rectangleSolid cardWidth cardHeight,
+      color borderColor $ rectangleWire cardWidth cardHeight
     ]
   where
-    width = 80
-    height = 120
     cardColor = light blue
     borderColor = black
     backColor = greyN 0.5
     textColor = black
 
+-- show the piles picture
 drawPiles :: InternalState -> Picture
-drawPiles state = pictures $ map drawPileWithIndex (zip [0..] (piles state))
+drawPiles state = pictures $ zipWith (curry drawPileWithIndex) [0..] (piles state)
   where
-    pileSpacing = 20
-    cardSpacing = 30
-    pileWidth = 80
-
     drawPileWithIndex :: (Int, [Card]) -> Picture
-    drawPileWithIndex (index, pile) = translate x 150 $ pictures $ zipWith drawCardOffset (reverse pile) [0..]
+    drawPileWithIndex (index, pile) = translate startX 150 $ pictures $ zipWith drawCardOffset (reverse pile) [0..]
       where
-        x = fromIntegral index * (pileWidth + pileSpacing) - totalWidth / 2 + pileWidth / 2 + pileSpacing / 2
+        startX = fromIntegral index * (pileWidth + pileSpacing) - totalWidth / 2 + pileWidth / 2 + pileSpacing / 2
 
     drawCardOffset :: Card -> Int -> Picture
     drawCardOffset card index = translate 0 (-fromIntegral index * cardSpacing) $ drawCard card
 
-    totalWidth = fromIntegral (length (piles state)) * (pileWidth + pileSpacing) - pileSpacing
-
+-- show the deck picture
 drawDeck :: InternalState -> Picture
 drawDeck state = translate deckX deckY $ pictures [deckPicture, deckCountText]
   where
     deckPicture = color deckColor $ rectangleSolid deckWidth deckHeight
     deckCountText = translate (-deckWidth * 0.15) (-10) $ scale 0.2 0.2 $ color textColor $ text (show $ length (remaining state))
-    deckX = -windowWidth / 2 + deckWidth / 2 + margin
-    deckY = windowHeight / 2 - deckHeight / 2 - margin
     deckColor = dark green
     textColor = white
-    deckWidth = 80
-    deckHeight = 120
-    margin = 20
-    windowWidth = 1200
-    windowHeight = 800
 
+-- show the number of completed decks
 drawFinishSetInfo :: InternalState -> Picture
 drawFinishSetInfo state = translate x y $ scale 0.15 0.15 $ color textColor $ text finishSetText
   where
     finishSetText = "Completed: " ++ show (finishedSets state)
     textColor = black
-    x = -windowWidth / 2 + deckWidth + margin * 2 + 20
-    y = windowHeight / 2 - margin - 50
-    deckWidth = 80
-    margin = 20
-    windowWidth = 1200
-    windowHeight = 800
+    x = -windowWidth / 2 + 120
+    y = windowHeight / 2  - 70
 
-
+-- show win message
 drawWinMessage :: InternalState -> Picture
-drawWinMessage state = if finishedSets state == totalSets 
+drawWinMessage state = if finishedSets state == totalSets
                        then translate (-windowWidth / 4) 0 $ scale 0.25 0.25 $ color winMessageColor $ text "Congratulations!!! You win！"
                        else Blank
   where
     winMessageColor = green
     totalSets = 8
-    windowWidth = 1200
 
+-- mouse click event
+-- not finished yet
 handleEvent :: Event -> State -> State
-handleEvent event state =
+handleEvent event state@(State { gameState = internalState }) =
     case event of
-        EventKey (MouseButton LeftButton) Up _ mousePos ->
-            if clickOnDealPile mousePos then
-                state { gameState = dealCards (gameState state) }
+        EventKey (MouseButton LeftButton) Down _ mousePos ->
+            if clickOnDealPile mousePos && not (null (remaining internalState)) then
+                state { gameState = dealCards internalState }
             else
-                state
+                case clickOnCard mousePos internalState of
+                    Just pos ->
+                        if isNothing (position internalState) then
+                            state { gameState = selectCard internalState pos }
+                        else
+                            case position internalState of
+                                Just oldPos ->
+                                    let newState = moveCards internalState oldPos (fst pos)
+                                    in state { gameState = newState { position = Nothing } }
+                                Nothing -> state
+                    Nothing -> state
         _ -> state
 
-clickOnDealPile :: (Float, Float) -> Bool
-clickOnDealPile (x, y) = 
-    x >= deckX - halfDeckWidth && x <= deckX + halfDeckWidth &&
-    y <= deckY + halfDeckHeight && y >= deckY - halfDeckHeight
+-- select a card (which means change Position)
+selectCard :: InternalState -> Position -> InternalState
+selectCard state pos =
+    if canChoose state pos then state { position = Just pos } else state
+
+-- click On DealPile or not
+clickOnDealPile :: Point -> Bool
+clickOnDealPile (clickX, clickY) =
+  clickX >= deckX - halfDeckWidth && clickX <= deckX + halfDeckWidth &&
+  clickY <= deckY + halfDeckHeight && clickY >= deckY - halfDeckHeight
   where
-    deckX = -500
-    deckY = 300
     halfDeckWidth = deckWidth / 2
     halfDeckHeight = deckHeight / 2
-    deckWidth = 80
-    deckHeight = 120
 
+-- click on a card, but make sure you only click the top of the card can 
+clickOnCard :: Point -> InternalState -> Maybe Position
+clickOnCard (clickX, clickY) state = do
+    let pilesWithIndex = zip [0..] (piles state)
+    let startX = -(totalWidth / 2) + pileSpacing / 2
+    let startY = 150 + cardHeight / 2
+
+    findClickPosition pilesWithIndex clickX clickY startX startY
+
+-- get Click Position
+findClickPosition :: [(Int, [Card])] -> Float -> Float -> Float -> Float -> Maybe Position
+findClickPosition [] _ _ _ _ = Nothing
+findClickPosition ((index, pile):rest) clickX clickY startX startY =
+    if inPileXRange clickX startX index then
+        let cardIndex = findCardIndex clickY startY (reverse pile) 0
+        in case cardIndex of
+            Just ci -> Just (index, ci)
+            Nothing -> findClickPosition rest clickX clickY startX startY
+    else findClickPosition rest clickX clickY startX startY
+
+-- check whether the clicked X coordinate is within the X range of a certain deck
+inPileXRange :: Float ->  Float -> Int -> Bool
+inPileXRange clickX startX  index =
+    let pileXStart = startX + fromIntegral index * (pileWidth + pileSpacing)
+    in clickX >= pileXStart && clickX <= pileXStart + pileWidth
+
+-- check whether the clicked Y coordinate is within the Y range of a certain deck
+findCardIndex :: Float -> Float -> [Card] -> Int -> Maybe Int
+findCardIndex clickY startY pile index =
+    if null pile then Nothing
+    else
+        let cardTopY = startY - fromIntegral index * cardSpacing
+        in if clickY < cardTopY && clickY >= cardTopY - cardSpacing then Just index
+           else findCardIndex clickY startY (tail pile) (index + 1)
+
+-- show position info
+drawSelectionInfo :: InternalState -> Picture
+drawSelectionInfo state =
+  translate (-590) (-380) $ scale 0.15 0.15 $ color black $ text selectionText
+  where
+    selectionText = case position state of
+        Just (pileIndex, cardIndex) ->
+            let card = (piles state !! pileIndex) !! cardIndex
+            in "Selected card: " ++ showCard card
+        Nothing -> "Selected: Nothing"
+
+-- show card status
+showCard :: Card -> String
+showCard (rank, faceUp) = if faceUp then showRank rank else "Face Down"
+
+-- game status
 drawGame :: InternalState -> Picture
-drawGame state = pictures [drawPiles state, drawDeck state, drawFinishSetInfo state, drawWinMessage state]
+drawGame state = pictures [drawPiles state, drawDeck state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state]
 
-
+-- run the app
 mainGUI :: IO ()
 mainGUI = do
     initialState <- generateInitialState
@@ -125,9 +176,11 @@ mainGUI = do
         background = white
         fps = 30
 
+-- draw the game state
 render :: State -> Picture
 render state = drawGame (gameState state)
 
+-- auto update function
 update :: Float -> State -> State
 update _ state =
     state { gameState = tryToCompleteFoundationPile (gameState state) }

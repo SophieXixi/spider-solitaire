@@ -39,3 +39,47 @@ data Action = Choose Position
             | Move Pile
             | Deal
   deriving Show
+
+
+cardWidth :: Float
+cardWidth = 80
+
+cardHeight :: Float
+cardHeight = 120
+
+cardSpacing :: Float
+cardSpacing = 30
+
+pileSpacing :: Float
+pileSpacing = 20
+
+pileWidth :: Float
+pileWidth = 80
+
+totalWidth :: Float
+totalWidth = 10 * (pileWidth + pileSpacing) - pileSpacing
+
+windowWidth :: Float
+windowWidth = 1200
+
+windowHeight :: Float
+windowHeight = 800
+
+pileStartX :: Float
+pileStartX = -(windowWidth / 2) + pileSpacing
+
+pileStartY :: Float
+pileStartY = windowHeight / 2 - cardHeight - pileSpacing
+
+deckWidth :: Float
+deckWidth = 80
+
+deckHeight :: Float
+deckHeight = 120
+
+deckX :: Float
+deckX = -540
+
+deckY :: Float
+deckY = 320
+

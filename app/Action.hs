@@ -5,6 +5,8 @@ import System.Random.MWC (createSystemRandom)
 import Data.Random (runRVar)
 import Data.Random.List (shuffle)
 import Definition
+import Debug.Trace
+import Data.Maybe
 --- END Imports
 --- Display helpers
 
@@ -85,6 +87,10 @@ generateInitialState = do
     actions = []
   })
 
+revealFirstCard :: [Card] -> [Card]
+revealFirstCard [] = []
+revealFirstCard ((value,_):t) = (value,True):t
+
 hasFullSuit :: [Card] -> Bool
 hasFullSuit cards
   | (length cards) < 13 = False
@@ -118,13 +124,14 @@ tryToCompleteFoundationPile state =
   displayState (tryToCompleteFoundationPile state)
 -}
 
+-- Move the cards at or below position to the target pile. Also reveals the card above the position if it is not revealed
 -- first Position is from position, second Pile is target pile
 moveCards :: InternalState -> Position -> Pile -> InternalState
 moveCards state (fromPile, fromIndex) toPile =
   let oldPiles = piles state
       removeCardsFromPile (cards, i) (cp, ctm) =
         if i == fromPile
-          then (let (bf, aft) = splitAt (fromIndex + 1) cards in (aft:cp, bf))
+          then (let (bf, aft) = splitAt (fromIndex + 1) cards in ((revealFirstCard aft):cp, bf))
           else (cards:cp, ctm)
       (curPiles, cardsToMove) = foldrWithIndex removeCardsFromPile ([], []) oldPiles
       addCardsToPile (cards, i) np =
@@ -184,6 +191,79 @@ distributedCards [] _ = []
 distributedCards _ [] = []
 distributedCards ((num, visible):t) (hp:tp) = ((num, True):hp) : distributedCards t tp
 
--- canChoose :: State -> Position -> Bool
+-- given the state of the game, and the target position of the card, return true if the card can be moved, and false otherwise
+-- assume the position is valid
+-- the card can be moved if: 
+--      it is the first one of one pile from bottom up (the first elem in the list)
+--      all the cards before it (in the list) are continuous
+canChoose :: InternalState -> Position -> Bool
+canChoose game (column, row)
+    | row == 0 = True
+    | otherwise = trace ("display: " ++ show list) comparePile list 0 row 
+    where 
+        list = getColumn (piles game) column
 
--- getAvailableActions :: Action -> InternalState -> [Action]
+getColumn:: [[Card]] -> Int -> [Card]
+getColumn [] _ = []
+getColumn (h:t) column
+--    | column == 0 = trace ("display: " ++ show h) h
+    | column == 0 = h
+--    | otherwise = displayPiles (getColumn t (column-1))
+    | otherwise = getColumn t (column-1)
+
+comparePile:: [Card] -> Int -> Int -> Bool
+comparePile [] _ _ = trace ("comparePile0") False
+comparePile ((num, visible):t) pre 0
+    | not visible = False
+    | num == (pre+1) = True
+    | otherwise = False
+-- comparePile [(num, visible)] _ 0 = trace ("comparePile1") True
+comparePile ((num, visible):t) pre pos
+    | not visible  = trace ("visible: " ++ show visible) False
+    | pre == 0 = trace ("pre=0") comparePile t num (pos-1)
+--    | pos == 0 = trace ("pos=0") True
+    | num == (pre+1) = trace ("num+1") comparePile t num (pos-1)
+    | otherwise = trace ("other") False
+
+
+-- given an internal state, and an action, return a bool to tell whether the action can be performed:
+-- if the action is:
+--      choose: the internal state has no position stored => if the card can be chosen => save to the internal state
+--              the internal state has a position stored => return false, cannot be performed
+--      deal: if the remaining has cards left => return true
+--            if the remaining is empty, no cards left to be dealed => return false
+--      move: if the internal state has a position stored => if the cards can be moved (the first elem in the pile = the num of the chosen position+1)
+--            if the internal state has no position stored => return false
+canActionBePerformed :: InternalState -> Action -> Bool
+canActionBePerformed game (Choose (column, row))
+    | isJust (position game) = False
+    | canChoose game (column,row) = True
+    | otherwise = False
+canActionBePerformed game (Move pile)
+    | not (isJust (position game)) = False
+    | null (getColumn (piles game) pile)  = True
+    | dest == chosen + 1 = True
+    | otherwise = False
+    where 
+        chosen = getCardNum game (fromJust (position game))
+        dest = getCardNum game (pile, 0)
+
+canActionBePerformed game (Deal)
+    | (remaining game) == [] = False
+    | otherwise = True
+
+-- update the internal state, showing one card has been chosen
+chooseCard :: InternalState -> Position -> InternalState
+chooseCard game pos = game { position = Just pos }
+
+-- get the number of the card given the position
+getCardNum :: InternalState -> Position -> Int
+-- getCardNum _ Nothing = 0
+getCardNum game (col, row) = getCard (getColumn (piles game) col) row
+
+-- get the number of a card
+getCard :: [Card] -> Int -> Int
+getCard [] _ = 0
+getCard ((num, visible):t) pos
+    | pos == 0 = num
+    | otherwise = getCard t (pos-1)
