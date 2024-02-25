@@ -19,20 +19,20 @@ displayPiles ((num, visible):t)
 
 displayState :: InternalState -> IO ()
 displayState state = do
-  putStrLn ("piles completed: " ++ (show (finishedSets state)))
-  putStrLn ("cards in reserve: 10 * " ++ (show (length (remaining state))))
-  putStrLn ("card selected: " ++ (show (position state)))
-  putStr ("piles: \n" ++ (concatMap displayPiles (piles state)))
+  putStrLn ("piles completed: " ++ show (finishedSets state))
+  putStrLn ("cards in reserve: 10 * " ++ show (length (remaining state)))
+  putStrLn ("card selected: " ++ show (position state))
+  putStr ("piles: \n" ++ concatMap displayPiles (piles state))
 
 display :: State -> IO ()
 display game = do
   displayState (gameState game)
-  putStrLn ("available actions: \n" ++ (show (actions game)))
+  putStrLn ("available actions: \n" ++ show (actions game))
 
 --- Generic helpers
 
 foldrWithIndex :: ((a, Int) -> b -> b) -> b -> [a] -> b
-foldrWithIndex fn acc lst = foldr fn acc (zip lst [0..((length lst) - 1)])
+foldrWithIndex fn acc lst = foldr fn acc (zip lst [0..(length lst - 1)])
 
 --- Helper methods
 
@@ -93,7 +93,7 @@ revealFirstCard ((value,_):t) = (value,True):t
 
 hasFullSuit :: [Card] -> Bool
 hasFullSuit cards
-  | (length cards) < 13 = False
+  | length cards < 13 = False
   | otherwise = foldrWithIndex (\ ((value, faceUp), i) acc -> acc && faceUp && value == (i + 1)) True (take 12 cards)
 {- TESTS
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, True)]))
@@ -105,13 +105,13 @@ hasFullSuit cards
 
 tryToCompleteFoundationPile :: InternalState -> InternalState
 tryToCompleteFoundationPile state =
-  let checkForFullSuit pile (np, ns) = if hasFullSuit pile then ((drop 13 pile):np, ns+1) else (pile:np, ns)
-      (newPiles, addedSets) = (foldr checkForFullSuit ([], 0) (piles state))
+  let checkForFullSuit pile (np, ns) = if hasFullSuit pile then ((revealFirstCard (drop 13 pile)):np, ns+1) else (pile:np, ns)
+      (newPiles, addedSets) = foldr checkForFullSuit ([], 0) (piles state)
   in InternalState {
     piles = newPiles,
-    remaining = (remaining state),
-    finishedSets = (finishedSets state) + addedSets,
-    position = (position state)
+    remaining = remaining state,
+    finishedSets = finishedSets state + addedSets,
+    position = position state
   }
 {- TEST
   let state = InternalState {
