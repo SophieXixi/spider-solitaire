@@ -34,6 +34,9 @@ display game = do
 foldrWithIndex :: ((a, Int) -> b -> b) -> b -> [a] -> b
 foldrWithIndex fn acc lst = foldr fn acc (zip lst [0..(length lst - 1)])
 
+findIndices :: (a -> Bool) -> [a] -> [Int]
+findIndices fn = foldrWithIndex (\ (e,i) acc -> (if fn e then i:acc else acc)) []
+
 --- Helper methods
 
 -- Returns a randomly shuffled version of the given list
@@ -70,6 +73,7 @@ tableauValuesToCards values = [foldl accum [] pileValues | pileValues <- values]
     accum (h:t) e = (h:t)++[(e, False)]
     accum [] e = [(e, True)]
 
+-- Returns a random initial game state, where cards are shuffled before putting in the piles and remaining fields
 generateInitialState :: IO State
 generateInitialState = do
   shuffledCardValues <- shuffleList allCardValues
@@ -87,10 +91,12 @@ generateInitialState = do
     actions = []
   })
 
+-- Make first card of a list of cards face up
 revealFirstCard :: [Card] -> [Card]
 revealFirstCard [] = []
 revealFirstCard ((value,_):t) = (value,True):t
 
+-- Returns true iff the first 13 cards of the list make up a full suit
 hasFullSuit :: [Card] -> Bool
 hasFullSuit cards
   | length cards < 13 = False
@@ -103,6 +109,8 @@ hasFullSuit cards
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, True)]))
 -}
 
+-- If full suit(s) exist in the piles, remove them and add to the completed foundation piles
+-- When removing the full suit, the card above the last one will be revealed if it is hidden
 tryToCompleteFoundationPile :: InternalState -> InternalState
 tryToCompleteFoundationPile state =
   let checkForFullSuit pile (np, ns) = if hasFullSuit pile then ((revealFirstCard (drop 13 pile)):np, ns+1) else (pile:np, ns)
@@ -155,6 +163,46 @@ moveCards state (fromPile, fromIndex) toPile =
   displayState state
   displayState (moveCards state (0, 1) 1)
 -}
+
+-- Alternative function for moving cards that uses the CardMove data type
+moveCardsAlt :: InternalState -> CardMove -> InternalState
+moveCardsAlt state cardMove = moveCards state (from cardMove) (to cardMove)
+
+-- Given the piles, return all possible card moves
+getPossibleCardMoves :: [[Card]] -> [CardMove]
+getPossibleCardMoves cardPiles =
+  let cardCanBePut :: Int -> [Card] -> Bool
+      cardCanBePut _ [] = True
+      cardCanBePut v ((hvalue,_):_) = (v + 1) == hvalue
+      getMovesForCard :: (Card,Position) -> [CardMove]
+      getMovesForCard ((value,up),pos) =
+        if up
+          then map (\ target -> CardMove { from = pos, to = target }) (findIndices (cardCanBePut value) cardPiles)
+          else []
+      cardsWithPositions :: [Card] -> Pile -> [(Card,Position)]
+      cardsWithPositions cards pileIndex = foldrWithIndex (\ (card,i) acc -> (card,(pileIndex,i)):acc) [] cards
+      getMovesForPile :: [(Card,Position)] -> [CardMove]
+      getMovesForPile (((hvalue,hup),hpos):((nvalue,nup),npos):r) =
+        getMovesForCard ((hvalue,hup),hpos) ++ (if nup && ((hvalue + 1) == nvalue) then getMovesForPile (((nvalue,nup),npos):r) else [])
+      getMovesForPile [h] = getMovesForCard h
+      getMovesForPile [] = []
+  in foldrWithIndex (\ (cards,i) acc -> (getMovesForPile (cardsWithPositions cards i))++acc) [] cardPiles
+{- TEST
+  let state = InternalState {
+    piles = [[(4, True), (5, True), (6, False)], [(6, True), (8, True)], [(7, True)], [(4, True), (5, False)], []],
+    remaining = [],
+    finishedSets = 0,
+    position = Nothing
+  }
+  displayState state
+  putStrLn ("Possible Moves:" ++ show (getPossibleCardMoves (piles state)))
+-}
+
+-- Given a game state, returns an integer representing the value; the higher the better
+-- getValueOfState :: InternalState -> Int
+
+-- Given a game state, returns the best next move according to the value of the state after the move
+-- suggestNextMove :: InternalState -> CardMove
 
 -- -- 3 methods above to be completed by William
 -- -- 3 methods below to be completed by Sophie

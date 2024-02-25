@@ -40,6 +40,12 @@ data Action = Choose Position
             | Deal
   deriving Show
 
+data CardMove = CardMove {
+  from :: Position,
+  to :: Pile
+}
+  deriving Show
+
 
 cardWidth :: Float
 cardWidth = 80
@@ -82,4 +88,3 @@ deckX = -540
 
 deckY :: Float
 deckY = 320
-
