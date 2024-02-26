@@ -187,9 +187,9 @@ inPileXRange clickX index =
 findCardIndex :: Float -> [Card] -> Int -> Maybe Int
 findCardIndex clickY pile index =
     let totalCards = length pile
-        cardTopY = startY - fromIntegral index * cardSpacing - cardSpacing
+        cardTopY = startY - fromIntegral index * cardSpacing
     in if index >= totalCards then Nothing
-       else if clickY >= cardTopY && clickY < cardTopY + cardHeight
+       else if clickY >= (if index == (totalCards - 1) then cardTopY - cardHeight else cardTopY - cardSpacing) && clickY < cardTopY
             then Just (totalCards - index - 1)
        else findCardIndex clickY pile (index + 1)
 
