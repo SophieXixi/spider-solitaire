@@ -274,14 +274,6 @@ solveGame state =
 -- -- 3 methods above to be completed by William
 -- -- 3 methods below to be completed by Sophie
 
-
--- dealCards :: InternalState -> InternalState
-
--- canChoose :: State -> Position -> Bool
-
--- getAvailableActions :: Action -> InternalState -> [Action]
-
-
 -- when user click dealCards:
 --      takes the first set of cards
 --      put each card to the top of each pile

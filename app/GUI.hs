@@ -113,7 +113,11 @@ handleEvent :: Event -> State -> State
 handleEvent event state@(State { gameState = internalState }) =
     case event of
         EventKey (MouseButton LeftButton) Down _ mousePos ->
-            if clickOnDealPile mousePos && not (null (remaining internalState)) then
+            if clickOnButton mousePos then
+                case solveGame internalState of
+                    Just solution -> state { gameState = applySolution internalState solution }
+                    Nothing -> state
+            else if clickOnDealPile mousePos && not (null (remaining internalState)) then
                 state { gameState = dealCards internalState }
             else
                 case clickOnCard mousePos internalState of
@@ -181,9 +185,21 @@ findCardIndex clickY pile index =
        else findCardIndex clickY pile (index + 1)
 
 -- check if click on the AI button
-isClickOnButton :: Point -> Bool
-isClickOnButton (clickX, clickY) =
+clickOnButton :: Point -> Bool
+clickOnButton (clickX, clickY) =
   clickX >= buttonX1 && clickX <= buttonX2 && clickY >= buttonY1 && clickY <= buttonY2
+
+-- only accept data of InternalState type
+applySolution :: InternalState -> [Maybe CardMove] -> InternalState
+applySolution state [] = state
+applySolution state (move:rest) = 
+  case move of
+    Just cardMove -> 
+      let newState = performCardMove state cardMove
+      in applySolution newState rest
+    Nothing -> 
+      let newState = dealCards state
+      in applySolution newState rest
 
 -- run the app
 mainGUI :: IO ()
@@ -203,3 +219,4 @@ render state = drawGame (gameState state)
 update :: Float -> State -> State
 update _ state =
     state { gameState = tryToCompleteFoundationPile (gameState state) }
+    
