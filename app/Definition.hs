@@ -33,7 +33,7 @@ data InternalState = InternalState {
   piles :: [[Card]],
   finishedSets :: Int,
   position :: Maybe Position
-} deriving (Show)
+}
 
 data Action = Choose Position
             | Move Pile
@@ -44,8 +44,9 @@ data CardMove = CardMove {
   from :: Position,
   to :: Pile
 }
-  deriving Show
 
+instance Show CardMove where
+  show cardMove = "{" ++ show (from cardMove) ++ "->" ++ show (to cardMove) ++ "}"
 
 cardWidth :: Float
 cardWidth = 80
