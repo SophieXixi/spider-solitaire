@@ -46,7 +46,7 @@ showCondensed state = concatMap displayPiles (piles state) ++ show (length (rema
 showSolution :: Maybe [Maybe CardMove] -> String
 showSolution Nothing = "No solution"
 showSolution (Just lst) =
-  concatMap showMove lst where
+  concatMap showMove lst ++ "\nTotal # of steps: " ++ show (length lst) where
     showMove Nothing = "\nDeal"
     showMove (Just move) = "\n" ++ show move
 
@@ -283,7 +283,7 @@ solveGame state =
               getFirstSolution ((_,hmove):r) =
                 let potentialSoln = solveWithMove hmove
                   in if isNothing potentialSoln then getFirstSolution r else potentialSoln
-            in getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue)))
+            in getFirstSolution (sortBy (\ (a,_) (b,_) -> compare b a) cardMovesWithValue))) -- sort by descending value
 
 type Mem = HashSet.HashSet String
 
@@ -308,7 +308,7 @@ solveGameMemWithTrace state visited =
                     let (potentialSoln, newVisited) = solveGameMem (performCardMove state move) curVisited
                         soln = appendIfExists (Just move) potentialSoln
                       in if isNothing soln then getFirstSolution r newVisited else (soln, newVisited)
-                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue) visited
+                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare b a) cardMovesWithValue) visited
                 in if isNothing firstSolution then (Nothing, HashSet.insert stateStr nextVisited) else (firstSolution, nextVisited))
 
 -- This is extremely efficient. I ran this with random initialization for about 100 times, and all of them ran below 1 second. There might be extremely rare instances where it can take up to 30 seconds, but that only occured before I removed all the trace outputs.
@@ -329,7 +329,7 @@ solveGameMem state visited =
                     let (potentialSoln, newVisited) = solveGameMem (performCardMove state move) curVisited
                         soln = appendIfExists (Just move) potentialSoln
                       in if isNothing soln then getFirstSolution r newVisited else (soln, newVisited)
-                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue) visited
+                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare b a) cardMovesWithValue) visited
                 in if isNothing firstSolution then (Nothing, HashSet.insert stateStr nextVisited) else (firstSolution, nextVisited)
 
 solveGameMemRun :: InternalState -> Maybe [Maybe CardMove]
