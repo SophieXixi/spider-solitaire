@@ -88,3 +88,11 @@ deckX = -540
 
 deckY :: Float
 deckY = 320
+
+startX :: Float
+startX = -(totalWidth / 2) + pileSpacing / 2
+
+startY :: Float
+startY = 150 + cardHeight / 2
+
+

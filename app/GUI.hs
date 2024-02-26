@@ -6,7 +6,6 @@ import Graphics.Gloss.Interface.Pure.Game
 import Definition
 import Action
 import Data.Maybe
-import Debug.Trace
 
 -- Specify the content on a card
 showRank :: Int -> String
@@ -33,7 +32,7 @@ drawCard (rank, faceUp) =
       color borderColor $ rectangleWire cardWidth cardHeight
     ]
   where
-    cardColor = light blue
+    cardColor = light (light blue)
     borderColor = black
     backColor = greyN 0.5
     textColor = black
@@ -43,9 +42,11 @@ drawPiles :: InternalState -> Picture
 drawPiles state = pictures $ zipWith (curry drawPileWithIndex) [0..] (piles state)
   where
     drawPileWithIndex :: (Int, [Card]) -> Picture
-    drawPileWithIndex (index, pile) = translate startX 150 $ pictures $ zipWith drawCardOffset (reverse pile) [0..]
-      where
-        startX = fromIntegral index * (pileWidth + pileSpacing) - totalWidth / 2 + pileWidth / 2 + pileSpacing / 2
+    drawPileWithIndex (index, pile) =
+      let pilesStartX = fromIntegral index * (pileWidth + pileSpacing) - totalWidth / 2 + pileWidth / 2 + pileSpacing / 2
+      in if null pile
+         then translate pilesStartX 150 $ color black $ rectangleWire pileWidth cardHeight
+         else translate pilesStartX 150 $ pictures $ zipWith drawCardOffset (reverse pile) [0..]
 
     drawCardOffset :: Card -> Int -> Picture
     drawCardOffset card index = translate 0 (-fromIntegral index * cardSpacing) $ drawCard card
@@ -118,37 +119,41 @@ clickOnDealPile (clickX, clickY) =
 clickOnCard :: Point -> InternalState -> Maybe Position
 clickOnCard (clickX, clickY) state = do
     let pilesWithIndex = zip [0..] (piles state)
-    let startX = -(totalWidth / 2) + pileSpacing / 2
-    let startY = 150 + cardHeight / 2
 
-    findClickPosition pilesWithIndex clickX clickY startX startY
+    findClickPosition pilesWithIndex clickX clickY
 
 -- get Click Position
-findClickPosition :: [(Int, [Card])] -> Float -> Float -> Float -> Float -> Maybe Position
-findClickPosition [] _ _ _ _ = Nothing
-findClickPosition ((index, pile):rest) clickX clickY startX startY =
-    if inPileXRange clickX startX index then
-        let cardIndex = findCardIndex clickY startY (reverse pile) 0
-        in case cardIndex of
-            Just ci -> trace ("ClickPosition: "++(show (index, ci))) (Just (index, ci))
-            Nothing -> findClickPosition rest clickX clickY startX startY
-    else findClickPosition rest clickX clickY startX startY
+findClickPosition :: [(Int, [Card])] -> Float -> Float-> Maybe Position
+findClickPosition [] _ _ = Nothing
+findClickPosition ((index, pile):rest) clickX clickY =
+    if inPileXRange clickX index then
+        if null pile then
+            if clickY >= startY && clickY <= startY + cardHeight then
+                Just (index, 0)
+            else
+                findClickPosition rest clickX clickY
+        else
+            let cardIndex = findCardIndex clickY pile 0
+            in case cardIndex of
+                Just ci -> Just (index, ci)
+                Nothing -> findClickPosition rest clickX clickY
+    else findClickPosition rest clickX clickY
 
 -- check whether the clicked X coordinate is within the X range of a certain deck
-inPileXRange :: Float ->  Float -> Int -> Bool
-inPileXRange clickX startX  index =
+inPileXRange :: Float -> Int -> Bool
+inPileXRange clickX index =
     let pileXStart = startX + fromIntegral index * (pileWidth + pileSpacing)
     in clickX >= pileXStart && clickX <= pileXStart + pileWidth
 
 -- check whether the clicked Y coordinate is within the Y range of a certain deck
-findCardIndex :: Float -> Float -> [Card] -> Int -> Maybe Int
-findCardIndex clickY startY pile index =
+findCardIndex :: Float -> [Card] -> Int -> Maybe Int
+findCardIndex clickY pile index =
     let totalCards = length pile
         cardTopY = startY - fromIntegral index * cardSpacing - cardSpacing
     in if index >= totalCards then Nothing
        else if clickY >= cardTopY && clickY < cardTopY + cardHeight
             then Just (totalCards - index - 1)
-            else findCardIndex clickY startY pile (index + 1)
+       else findCardIndex clickY pile (index + 1)
 
 -- show position info
 drawSelectionInfo :: InternalState -> Picture
