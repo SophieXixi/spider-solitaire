@@ -8,6 +8,7 @@ import Definition
 import Debug.Trace
 import Data.Maybe
 import Data.List
+import qualified Data.HashSet as HashSet
 --- END Imports
 --- Display helpers
 
@@ -35,6 +36,19 @@ instance Show InternalState where
     "===================================\n" ++ concatMap (\ (i,pile) -> "[" ++ show i ++ "] " ++ displayPiles pile) (zip [0..] (piles state)) ++
     "remaining: " ++ show (length (remaining state)) ++ ", completed: " ++ show (finishedSets state) ++
     "\n===================================\n"
+
+showComplete :: InternalState -> String
+showComplete state = "InternalState {\n  piles = " ++ show (piles state) ++ ",\n  remaining = " ++ show (remaining state) ++ ",  \n  finishedSets = " ++ show (finishedSets state) ++ ",\n  position = " ++ show (position state) ++ "\n}"
+
+showCondensed :: InternalState -> String
+showCondensed state = concatMap displayPiles (piles state) ++ show (length (remaining state)) ++ "," ++ show (finishedSets state)
+
+showSolution :: Maybe [Maybe CardMove] -> String
+showSolution Nothing = "No solution"
+showSolution (Just lst) =
+  concatMap showMove lst where
+    showMove Nothing = "\nDeal"
+    showMove (Just move) = "\n" ++ show move
 
 --- Generic helpers
 
@@ -270,6 +284,57 @@ solveGame state =
                 let potentialSoln = solveWithMove hmove
                   in if isNothing potentialSoln then getFirstSolution r else potentialSoln
             in getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue)))
+
+type Mem = HashSet.HashSet String
+
+appendIfExistsMem :: a -> String -> (Maybe [a], Mem) -> (Maybe [a], Mem)
+appendIfExistsMem val str (Nothing, visited) = (Nothing, HashSet.insert str visited)
+appendIfExistsMem val _ (Just lst, visited) = (Just (val:lst), visited)
+
+solveGameMemWithTrace :: InternalState -> Mem -> (Maybe [Maybe CardMove], Mem)
+solveGameMemWithTrace state visited =
+  if finishedSets state == 8 then trace "soln found" (Just [], visited) else
+    let stateStr = showCondensed state
+      in if HashSet.member stateStr visited then (Nothing, visited) else
+        let currentValue = getValueOfState state
+            cardMovesWithValue = filter (\ (val,_) -> val > currentValue) (getPossibleCardMovesWithValue state)
+          in trace ("currentValue = " ++ show currentValue ++ "; moves = " ++ show (cardMovesWithValue) ++ "\n" ++ show state) (if null cardMovesWithValue
+            then
+              if null (remaining state) then (Nothing, HashSet.insert stateStr visited) else appendIfExistsMem Nothing stateStr (solveGameMem (dealCards state) visited)
+            else
+              let getFirstSolution :: [(Int,CardMove)] -> Mem -> (Maybe [Maybe CardMove], Mem)
+                  getFirstSolution [] curVisited = (Nothing, curVisited)
+                  getFirstSolution ((_,move):r) curVisited =
+                    let (potentialSoln, newVisited) = solveGameMem (performCardMove state move) curVisited
+                        soln = appendIfExists (Just move) potentialSoln
+                      in if isNothing soln then getFirstSolution r newVisited else (soln, newVisited)
+                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue) visited
+                in if isNothing firstSolution then (Nothing, HashSet.insert stateStr nextVisited) else (firstSolution, nextVisited))
+
+-- This is extremely efficient. I ran this with random initialization for about 100 times, and all of them ran below 1 second. There might be extremely rare instances where it can take up to 30 seconds, but that only occured before I removed all the trace outputs.
+solveGameMem :: InternalState -> Mem -> (Maybe [Maybe CardMove], Mem)
+solveGameMem state visited =
+  if finishedSets state == 8 then (Just [], visited) else
+    let stateStr = showCondensed state
+      in if HashSet.member stateStr visited then (Nothing, visited) else
+        let currentValue = getValueOfState state
+            cardMovesWithValue = filter (\ (val,_) -> val > currentValue) (getPossibleCardMovesWithValue state)
+          in if null cardMovesWithValue
+            then
+              if null (remaining state) then (Nothing, HashSet.insert stateStr visited) else appendIfExistsMem Nothing stateStr (solveGameMem (dealCards state) visited)
+            else
+              let getFirstSolution :: [(Int,CardMove)] -> Mem -> (Maybe [Maybe CardMove], Mem)
+                  getFirstSolution [] curVisited = (Nothing, curVisited)
+                  getFirstSolution ((_,move):r) curVisited =
+                    let (potentialSoln, newVisited) = solveGameMem (performCardMove state move) curVisited
+                        soln = appendIfExists (Just move) potentialSoln
+                      in if isNothing soln then getFirstSolution r newVisited else (soln, newVisited)
+                  (firstSolution, nextVisited) = getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue) visited
+                in if isNothing firstSolution then (Nothing, HashSet.insert stateStr nextVisited) else (firstSolution, nextVisited)
+
+solveGameMemRun :: InternalState -> Maybe [Maybe CardMove]
+-- solveGameMemRun state = fst (solveGameMemWithTrace state HashSet.empty)
+solveGameMemRun state = fst (solveGameMem state HashSet.empty)
 
 -- -- 3 methods above to be completed by William
 -- -- 3 methods below to be completed by Sophie

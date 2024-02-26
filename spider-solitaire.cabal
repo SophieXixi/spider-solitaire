@@ -72,6 +72,7 @@ executable spider-solitaire
         base ^>=4.17.2.1,
         random-fu ^>=0.3.0.1,
         mwc-random ^>= 0.15.0.2,
+        unordered-containers ^>= 0.2.20,
         gloss,
         GLUT
 

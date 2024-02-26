@@ -114,7 +114,7 @@ handleEvent event state@(State { gameState = internalState }) =
     case event of
         EventKey (MouseButton LeftButton) Down _ mousePos ->
             if clickOnButton mousePos then
-                case solveGame internalState of
+                case solveGameMemRun internalState of
                     Just solution -> state { gameState = applySolution internalState solution }
                     Nothing -> state
             else if clickOnDealPile mousePos && not (null (remaining internalState)) then
