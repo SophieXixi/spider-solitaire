@@ -7,6 +7,7 @@ import Data.Random.List (shuffle)
 import Definition
 import Debug.Trace
 import Data.Maybe
+import Data.List
 --- END Imports
 --- Display helpers
 
@@ -22,20 +23,30 @@ displayState state = do
   putStrLn ("piles completed: " ++ show (finishedSets state))
   putStrLn ("cards in reserve: 10 * " ++ show (length (remaining state)))
   putStrLn ("card selected: " ++ show (position state))
-  putStr ("piles: \n" ++ concatMap displayPiles (piles state))
+  putStr ("piles: \n" ++ concatMap (\ (i,pile) -> "[" ++ show i ++ "] " ++ displayPiles pile) (zip [0..] (piles state)))
 
 display :: State -> IO ()
 display game = do
   displayState (gameState game)
   putStrLn ("available actions: \n" ++ show (actions game))
 
+instance Show InternalState where
+  show state =
+    "===================================\n" ++ concatMap (\ (i,pile) -> "[" ++ show i ++ "] " ++ displayPiles pile) (zip [0..] (piles state)) ++
+    "remaining: " ++ show (length (remaining state)) ++ ", completed: " ++ show (finishedSets state) ++
+    "\n===================================\n"
+
 --- Generic helpers
 
 foldrWithIndex :: ((a, Int) -> b -> b) -> b -> [a] -> b
 foldrWithIndex fn acc lst = foldr fn acc (zip lst [0..(length lst - 1)])
 
-findIndices :: (a -> Bool) -> [a] -> [Int]
-findIndices fn = foldrWithIndex (\ (e,i) acc -> (if fn e then i:acc else acc)) []
+-- findIndices :: (a -> Bool) -> [a] -> [Int]
+-- findIndices fn = foldrWithIndex (\ (e,i) acc -> (if fn e then i:acc else acc)) []
+
+appendIfExists :: a -> Maybe [a] -> Maybe [a]
+appendIfExists val Nothing = Nothing
+appendIfExists val (Just lst) = Just (val:lst)
 
 --- Helper methods
 
@@ -100,13 +111,14 @@ revealFirstCard ((value,_):t) = (value,True):t
 hasFullSuit :: [Card] -> Bool
 hasFullSuit cards
   | length cards < 13 = False
-  | otherwise = foldrWithIndex (\ ((value, faceUp), i) acc -> acc && faceUp && value == (i + 1)) True (take 12 cards)
+  | otherwise = foldrWithIndex (\ ((value, faceUp), i) acc -> acc && faceUp && value == (i + 1)) True (take 13 cards)
 {- TESTS
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, True)]))
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, True), (3, False)]))
   putStrLn (show (hasFullSuit [(1, True), (2, True)]))
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, True), (10, True), (11, False), (12, True), (13, True)]))
   putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, True)]))
+  putStrLn (show (hasFullSuit [(1, True), (2, True), (3, True), (4, True), (5, True), (6, True), (7, True), (8, True), (9, True), (10, True), (11, True), (12, True), (13, False)]))
 -}
 
 -- If full suit(s) exist in the piles, remove them and add to the completed foundation piles
@@ -199,10 +211,65 @@ getPossibleCardMoves cardPiles =
 -}
 
 -- Given a game state, returns an integer representing the value; the higher the better
--- getValueOfState :: InternalState -> Int
+getValueOfState :: InternalState -> Int
+getValueOfState state =
+  let getContinuousCards :: [Card] -> [Card]
+      getContinuousCards [] = []
+      getContinuousCards [(val,up)] = if up then [(val,up)] else []
+      getContinuousCards ((val,up):(nval,nup):r)
+        | not up = []
+        | (val + 1) == nval = (val,up):(getContinuousCards ((nval,nup):r))
+        | otherwise = [(val,up)]
+      computePileValue :: [Card] -> Int
+      computePileValue cards = if null cards then 1 else 2 * (length (getContinuousCards cards) - length (filter (\ (_,up) -> not up) cards))
+  in (sum (map computePileValue (piles state))) + (30 * finishedSets state) -- completed sets has value larger than 26 to encourage completing sets
 
--- Given a game state, returns the best next move according to the value of the state after the move
--- suggestNextMove :: InternalState -> CardMove
+-- returns the state after the card move is performed
+performCardMove :: InternalState -> CardMove -> InternalState
+performCardMove state move = tryToCompleteFoundationPile (moveCardsAlt state move)
+
+getPossibleCardMovesWithValue :: InternalState -> [(Int,CardMove)]
+getPossibleCardMovesWithValue state = map (\ move -> (getValueOfState (performCardMove state move),move)) (getPossibleCardMoves (piles state))
+
+-- Given a game state, returns the best next card move according to the value of the state after the move, or Nothing if there is no card moves available
+suggestNextCardMove :: InternalState -> Maybe CardMove
+suggestNextCardMove state =
+  let cardMovesWithValue = getPossibleCardMovesWithValue state in
+    if null cardMovesWithValue
+      then Nothing
+      else
+        trace (show cardMovesWithValue) (Just (snd (foldr (\ (val,move) (maxval,maxmove) -> if val > maxval then (val,move) else (maxval,maxmove)) (head cardMovesWithValue) cardMovesWithValue)))
+{-TEST
+  let state = InternalState {
+    piles = [[(4, True), (11, True), (12, True), (13, True), (5, False), (6, False)], [(5, True), (9, True), (11, False), (1, False), (3, False)], [(3, True), (9, True), (11, False)], [(13, True), (2, True), (5, False)], [(4, True), (4, True), (5, True), (6, True), (8, False), (9, False)], [(6, True), (6, True), (7, True), (8, True), (9, True), (10, False)], [(9, True), (4, True)], [(13, True), (1, True), (3, False)], [(12, True), (8, True)], [(10, True), (12, True)]],
+    remaining = [],
+    finishedSets = 0,
+    position = Nothing
+  }
+  displayState state
+  putStrLn ("Possible Moves:" ++ show (getPossibleCardMoves (piles state)))
+  putStrLn ("Current Value:" ++ show (getValueOfState state))
+  putStrLn ("Suggested Move:" ++ show (suggestNextCardMove state))
+-}
+
+-- given the current state, returns a solution to the game in the form of [CardMove, or Nothing if dealing from reserve], or nothing if a solution does not exist
+solveGame :: InternalState -> Maybe [Maybe CardMove]
+solveGame state =
+  trace (show state) (if finishedSets state == 8 then trace "soln found" (Just []) else
+    let currentValue = getValueOfState state
+        cardMovesWithValue = filter (\ (val,_) -> val > currentValue) (getPossibleCardMovesWithValue state) in
+      trace ("currentValue = " ++ (show currentValue) ++ "; moves = " ++ (show (cardMovesWithValue))) (if null cardMovesWithValue
+        then
+          if null (remaining state) then Nothing else (trace "deal cards" (appendIfExists Nothing (solveGame (dealCards state))))
+        else
+          let solveWithMove :: CardMove -> Maybe [Maybe CardMove]
+              solveWithMove move = trace ("try move: " ++ (show move)) (appendIfExists (Just move) (solveGame (performCardMove state move)))
+              getFirstSolution :: [(Int,CardMove)] -> Maybe [Maybe CardMove]
+              getFirstSolution [] = Nothing
+              getFirstSolution ((_,hmove):r) =
+                let potentialSoln = solveWithMove hmove
+                  in if isNothing potentialSoln then getFirstSolution r else potentialSoln
+            in getFirstSolution (sortBy (\ (a,_) (b,_) -> compare a b) cardMovesWithValue)))
 
 -- -- 3 methods above to be completed by William
 -- -- 3 methods below to be completed by Sophie
@@ -243,7 +310,7 @@ distributedCards ((num, visible):t) (hp:tp) = ((num, True):hp) : distributedCard
 -- Returns true iff the list of cards are continuous and visible
 isContinuous :: [Card] -> Bool
 isContinuous [] = True
-isContinuous [(val,up)] = up
+isContinuous [(_,up)] = up
 isContinuous ((val,up):(nval,nup):r) = up && ((val + 1) == nval) && (isContinuous ((nval,nup):r))
 
 -- given the state of the game, and the target position of the card, return true if the card can be moved, and false otherwise

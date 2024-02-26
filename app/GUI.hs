@@ -33,7 +33,7 @@ drawCard (rank, faceUp) =
       color borderColor $ rectangleWire cardWidth cardHeight
     ]
   where
-    cardColor = light blue
+    cardColor = light (light blue)
     borderColor = black
     backColor = greyN 0.5
     textColor = black
