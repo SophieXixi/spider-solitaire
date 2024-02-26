@@ -72,11 +72,40 @@ drawFinishSetInfo state = translate x y $ scale 0.15 0.15 $ color textColor $ te
 -- show win message
 drawWinMessage :: InternalState -> Picture
 drawWinMessage state = if finishedSets state == totalSets
-                       then translate (-windowWidth / 4) 0 $ scale 0.25 0.25 $ color winMessageColor $ text "Congratulations!!! You win！"
+                       then translate (-windowWidth / 4) 0 $ scale 0.3 0.3 $ color winMessageColor $ text "Congratulations!!!You win!"
                        else Blank
   where
-    winMessageColor = green
+    winMessageColor = red
     totalSets = 8
+
+-- Button for AI solving
+drawButton :: Picture
+drawButton = pictures [botton, bottonText]
+  where
+    botton = translate (buttonX1 + (buttonX2 - buttonX1) / 2) (buttonY1 + (buttonY2 - buttonY1) / 2) $ color buttonColor $ rectangleSolid (buttonX2 - buttonX1) (buttonY2 - buttonY1)
+    bottonText = translate textX textY $ scale 0.2 0.2 $ color black $ text "AI"
+    textX = buttonX1 + 30
+    textY = buttonY1 + 15
+    buttonColor = orange
+
+-- show position info
+drawSelectionInfo :: InternalState -> Picture
+drawSelectionInfo state =
+  translate (-590) (-380) $ scale 0.15 0.15 $ color black $ text selectionText
+  where
+    selectionText = case position state of
+        Just (pileIndex, cardIndex) ->
+            let card = (piles state !! pileIndex) !! cardIndex
+            in "Selected card: " ++ showCard card
+        Nothing -> "Selected: Nothing"
+
+-- show card status
+showCard :: Card -> String
+showCard (rank, faceUp) = if faceUp then showRank rank else "Face Down"
+
+-- game status
+drawGame :: InternalState -> Picture
+drawGame state = pictures [drawPiles state, drawDeck state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state, drawButton]
 
 -- mouse click event
 -- not finished yet
@@ -127,11 +156,7 @@ findClickPosition :: [(Int, [Card])] -> Float -> Float-> Maybe Position
 findClickPosition [] _ _ = Nothing
 findClickPosition ((index, pile):rest) clickX clickY =
     if inPileXRange clickX index then
-        if null pile then
-            if clickY >= startY && clickY <= startY + cardHeight then
-                Just (index, 0)
-            else
-                findClickPosition rest clickX clickY
+        if null pile then Just (index, 0)
         else
             let cardIndex = findCardIndex clickY pile 0
             in case cardIndex of
@@ -155,24 +180,10 @@ findCardIndex clickY pile index =
             then Just (totalCards - index - 1)
        else findCardIndex clickY pile (index + 1)
 
--- show position info
-drawSelectionInfo :: InternalState -> Picture
-drawSelectionInfo state =
-  translate (-590) (-380) $ scale 0.15 0.15 $ color black $ text selectionText
-  where
-    selectionText = case position state of
-        Just (pileIndex, cardIndex) ->
-            let card = (piles state !! pileIndex) !! cardIndex
-            in "Selected card: " ++ showCard card
-        Nothing -> "Selected: Nothing"
-
--- show card status
-showCard :: Card -> String
-showCard (rank, faceUp) = if faceUp then showRank rank else "Face Down"
-
--- game status
-drawGame :: InternalState -> Picture
-drawGame state = pictures [drawPiles state, drawDeck state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state]
+-- check if click on the AI button
+isClickOnButton :: Point -> Bool
+isClickOnButton (clickX, clickY) =
+  clickX >= buttonX1 && clickX <= buttonX2 && clickY >= buttonY1 && clickY <= buttonY2
 
 -- run the app
 mainGUI :: IO ()

@@ -48,6 +48,9 @@ data CardMove = CardMove {
 instance Show CardMove where
   show cardMove = "{" ++ show (from cardMove) ++ "->" ++ show (to cardMove) ++ "}"
 
+
+-- GUI constants
+----------------------------------------------------------------------------------------------------
 cardWidth :: Float
 cardWidth = 80
 
@@ -96,4 +99,16 @@ startX = -(totalWidth / 2) + pileSpacing / 2
 startY :: Float
 startY = 150 + cardHeight / 2
 
+buttonX1 :: Float
+buttonX1 = 450
+
+buttonY1 :: Float
+buttonY1 = 300
+
+buttonX2 :: Float
+buttonX2 = buttonX1 + 80
+
+buttonY2 :: Float
+buttonY2 = buttonY1 + 50
+----------------------------------------------------------------------------------------------------
 
