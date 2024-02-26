@@ -7,6 +7,15 @@ import Definition
 import Action
 import Data.Maybe
 
+
+data GUIResources = GUIResources {
+  cardImages :: [Picture],
+  cardBackImage :: Picture
+}
+
+imageFilePaths = [ "resources/spades_" ++ show i ++ ".bmp" | i <- [1..13] ]
+
+
 -- Specify the content on a card
 showRank :: Int -> String
 showRank rank
@@ -18,28 +27,27 @@ showRank rank
   | otherwise = error "Invalid rank"
 
 -- Show a card
-drawCard :: Card -> Picture
-drawCard (rank, faceUp) =
+drawCard :: GUIResources -> Card -> Picture
+drawCard resources (rank, faceUp) =
   if faceUp then
     pictures [
-      color cardColor $ rectangleSolid cardWidth cardHeight,
-      color borderColor $ rectangleWire cardWidth cardHeight,
-      translate (-35) 40 $ scale 0.15 0.15 $ color textColor $ text (showRank rank)
+      scale 0.4 0.4 (cardImages resources !! (rank - 1)),
+      color borderColor $ rectangleWire cardWidth cardHeight
     ]
   else
     pictures [
-      color backColor $ rectangleSolid cardWidth cardHeight,
+      scale 0.11 0.11 (cardBackImage resources),
       color borderColor $ rectangleWire cardWidth cardHeight
     ]
   where
     cardColor = light (light blue)
-    borderColor = black
+    borderColor = dark $ dim blue
     backColor = greyN 0.5
     textColor = black
 
 -- show the piles picture
-drawPiles :: InternalState -> Picture
-drawPiles state = pictures $ zipWith (curry drawPileWithIndex) [0..] (piles state)
+drawPiles :: GUIResources -> InternalState -> Picture
+drawPiles resources state = pictures $ zipWith (curry drawPileWithIndex) [0..] (piles state)
   where
     drawPileWithIndex :: (Int, [Card]) -> Picture
     drawPileWithIndex (index, pile) =
@@ -49,14 +57,15 @@ drawPiles state = pictures $ zipWith (curry drawPileWithIndex) [0..] (piles stat
          else translate pilesStartX 150 $ pictures $ zipWith drawCardOffset (reverse pile) [0..]
 
     drawCardOffset :: Card -> Int -> Picture
-    drawCardOffset card index = translate 0 (-fromIntegral index * cardSpacing) $ drawCard card
+    drawCardOffset card index = translate 0 (-fromIntegral index * cardSpacing) $ drawCard resources card
 
 -- show the deck picture
-drawDeck :: InternalState -> Picture
-drawDeck state = translate deckX deckY $ pictures [deckPicture, deckCountText]
+drawDeck :: GUIResources -> InternalState -> Picture
+drawDeck resources state = translate deckX deckY $ pictures [deckPicture, deckCountText]
   where
-    deckPicture = color deckColor $ rectangleSolid deckWidth deckHeight
-    deckCountText = translate (-deckWidth * 0.15) (-10) $ scale 0.2 0.2 $ color textColor $ text (show $ length (remaining state))
+    -- deckPicture = color deckColor $ rectangleSolid deckWidth deckHeight
+    deckPicture = scale 0.115 0.115 $ cardBackImage resources
+    deckCountText = translate (-8) (-10) $ scale 0.2 0.2 $ color textColor $ text (show $ length (remaining state))
     deckColor = dark green
     textColor = white
 
@@ -104,8 +113,8 @@ showCard :: Card -> String
 showCard (rank, faceUp) = if faceUp then showRank rank else "Face Down"
 
 -- game status
-drawGame :: InternalState -> Picture
-drawGame state = pictures [drawPiles state, drawDeck state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state, drawButton]
+drawGame :: GUIResources -> InternalState -> Picture
+drawGame resources state = pictures [drawPiles resources state, drawDeck resources state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state, drawButton]
 
 -- mouse click event
 -- not finished yet
@@ -201,19 +210,32 @@ applySolution state (move:rest) =
       let newState = dealCards state
       in applySolution newState rest
 
+loadCardImages :: [FilePath] -> IO [Picture]
+loadCardImages [] = do return []
+loadCardImages (h:t) = do
+  img <- loadBMP h
+  restImg <- loadCardImages t
+  return (img:restImg)
+
 -- run the app
 mainGUI :: IO ()
 mainGUI = do
     initialState <- generateInitialState
-    play window background fps initialState render handleEvent update
+    cBack <- loadBMP "resources/blue.bmp"
+    cImages <- loadCardImages imageFilePaths
+    let resources = GUIResources {
+      cardImages = cImages,
+      cardBackImage = cBack
+    }
+    play window background fps initialState (render resources) handleEvent update
     where
         window = InWindow "Spider Solitaire" (1200, 800) (100, 100)
-        background = white
+        background = dark $ dark $ dim green
         fps = 30
 
 -- draw the game state
-render :: State -> Picture
-render state = drawGame (gameState state)
+render :: GUIResources -> State -> Picture
+render resources state = drawGame resources (gameState state)
 
 -- auto update function
 update :: Float -> State -> State
