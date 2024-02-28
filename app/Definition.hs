@@ -99,16 +99,34 @@ startX = -(totalWidth / 2) + pileSpacing / 2
 startY :: Float
 startY = 150 + cardHeight / 2
 
+--AI button
+------------------------
 buttonX1 :: Float
-buttonX1 = 450
+buttonX1 = 500
 
 buttonY1 :: Float
-buttonY1 = 300
+buttonY1 = 320
 
+weight1 :: Float
+weight1 = 80
+
+height1 :: Float
+height1 = 50
+------------------------
+
+--Hiti button
+------------------------
 buttonX2 :: Float
-buttonX2 = buttonX1 + 80
+buttonX2 = 400
 
 buttonY2 :: Float
-buttonY2 = buttonY1 + 50
+buttonY2 = 320
+
+weight2 :: Float
+weight2 = 80
+
+height2 :: Float
+height2 = 50
+------------------------
 ----------------------------------------------------------------------------------------------------
 

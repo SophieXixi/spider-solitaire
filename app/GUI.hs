@@ -76,25 +76,31 @@ drawFinishSetInfo state = translate x y $ scale 0.15 0.15 $ color textColor $ te
     finishSetText = "Completed: " ++ show (finishedSets state)
     textColor = black
     x = -windowWidth / 2 + 120
-    y = windowHeight / 2  - 70
+    y = windowHeight / 2  - 80
 
 -- show win message
 drawWinMessage :: InternalState -> Picture
 drawWinMessage state = if finishedSets state == totalSets
-                       then translate (-windowWidth / 4) 0 $ scale 0.3 0.3 $ color winMessageColor $ text "Congratulations!!!You win!"
+                       then translate (-windowWidth / 4) 0 $ scale 0.3 0.3 $ color winMessageColor $ text "Congratulations!!! You win!"
                        else Blank
   where
     winMessageColor = red
     totalSets = 8
 
 -- Button for AI solving
-drawButton :: Picture
-drawButton = pictures [botton, bottonText]
+drawButtonForAI :: Picture
+drawButtonForAI = pictures [botton, bottonText]
   where
-    botton = translate (buttonX1 + (buttonX2 - buttonX1) / 2) (buttonY1 + (buttonY2 - buttonY1) / 2) $ color buttonColor $ rectangleSolid (buttonX2 - buttonX1) (buttonY2 - buttonY1)
-    bottonText = translate textX textY $ scale 0.2 0.2 $ color black $ text "AI"
-    textX = buttonX1 + 30
-    textY = buttonY1 + 15
+    botton = translate buttonX1 buttonY1 $ color buttonColor $ rectangleSolid weight1 height1
+    bottonText = translate (buttonX1 - 10) (buttonY1 - 10) $ scale 0.2 0.2 $ color black $ text "AI"
+    buttonColor = light (light blue)
+
+-- Button for hiti
+drawButtonForHint :: Picture
+drawButtonForHint = pictures [botton, bottonText]
+  where
+    botton = translate buttonX2 buttonY2 $ color buttonColor $ rectangleSolid weight2 height2
+    bottonText = translate (buttonX2 - 20) (buttonY2 - 10) $ scale 0.2 0.2 $ color black $ text "Hint"
     buttonColor = orange
 
 -- show position info
@@ -103,10 +109,10 @@ drawSelectionInfo state =
   translate (-590) (-380) $ scale 0.15 0.15 $ color black $ text selectionText
   where
     selectionText = case position state of
-        Just (pileIndex, cardIndex) ->
-            let card = (piles state !! pileIndex) !! cardIndex
-            in "Selected card: " ++ showCard card
-        Nothing -> "Selected: Nothing"
+      Just (pileIndex, cardIndex) ->
+        let card = (piles state !! pileIndex) !! cardIndex
+        in "Selected card: " ++ showCard card
+      Nothing -> "Selected: Nothing"
 
 -- show card status
 showCard :: Card -> String
@@ -114,34 +120,37 @@ showCard (rank, faceUp) = if faceUp then showRank rank else "Face Down"
 
 -- game status
 drawGame :: GUIResources -> InternalState -> Picture
-drawGame resources state = pictures [drawPiles resources state, drawDeck resources state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state, drawButton]
+drawGame resources state = pictures [drawPiles resources state, drawDeck resources state, drawFinishSetInfo state, drawWinMessage state, drawSelectionInfo state, drawButtonForAI, drawButtonForHint]
 
 -- mouse click event
--- not finished yet
 handleEvent :: Event -> State -> State
 handleEvent event state@(State { gameState = internalState }) =
-    case event of
-        EventKey (MouseButton LeftButton) Down _ mousePos ->
-            if clickOnButton mousePos then
-                case solveGameMemRun internalState of
-                    Just solution -> state { gameState = applySolution internalState solution }
-                    Nothing -> state
-            else if clickOnDealPile mousePos && not (null (remaining internalState)) then
-                state { gameState = dealCards internalState }
+  case event of
+    EventKey (MouseButton LeftButton) Down _ mousePos ->
+      if clickOnHintButton mousePos then
+        case suggestNextCardMove internalState of
+          Just move -> state { gameState = moveCardsAlt internalState move }
+          Nothing -> state
+      else if clickOnAIButton mousePos then
+        case solveGameMemRun internalState of
+          Just solution -> state { gameState = applySolution internalState solution }
+          Nothing -> state
+      else if clickOnDealPile mousePos && not (null (remaining internalState)) then
+          state { gameState = dealCards internalState }
+      else
+        case clickOnCard mousePos internalState of
+          Just pos ->
+            if isNothing (position internalState) then
+                state { gameState = selectCard internalState pos }
             else
-                case clickOnCard mousePos internalState of
-                    Just pos ->
-                        if isNothing (position internalState) then
-                            state { gameState = selectCard internalState pos }
-                        else
-                            case position internalState of
-                                Just oldPos ->
-                                    if canActionBePerformed internalState (Move (fst pos))
-                                      then state { gameState = (moveCards internalState oldPos (fst pos)) { position = Nothing } }
-                                      else state { gameState = internalState { position = Nothing }}
-                                Nothing -> state
-                    Nothing -> state
-        _ -> state
+              case position internalState of
+                  Just oldPos ->
+                    if canActionBePerformed internalState (Move (fst pos))
+                      then state { gameState = (moveCards internalState oldPos (fst pos)) { position = Nothing } }
+                      else state { gameState = internalState { position = Nothing }}
+                  Nothing -> state
+          Nothing -> state
+    _ -> state
 
 -- select a card (which means change Position)
 selectCard :: InternalState -> Position -> InternalState
@@ -160,53 +169,58 @@ clickOnDealPile (clickX, clickY) =
 -- click on a card, but make sure you only click the top of the card can 
 clickOnCard :: Point -> InternalState -> Maybe Position
 clickOnCard (clickX, clickY) state = do
-    let pilesWithIndex = zip [0..] (piles state)
+  let pilesWithIndex = zip [0..] (piles state)
 
-    findClickPosition pilesWithIndex clickX clickY
+  findClickPosition pilesWithIndex clickX clickY
 
 -- get Click Position
 findClickPosition :: [(Int, [Card])] -> Float -> Float-> Maybe Position
 findClickPosition [] _ _ = Nothing
 findClickPosition ((index, pile):rest) clickX clickY =
-    if inPileXRange clickX index then
-        if null pile then Just (index, 0)
-        else
-            let cardIndex = findCardIndex clickY pile 0
-            in case cardIndex of
-                Just ci -> Just (index, ci)
-                Nothing -> findClickPosition rest clickX clickY
-    else findClickPosition rest clickX clickY
+  if inPileXRange clickX index then
+    if null pile then Just (index, 0)
+    else
+      let cardIndex = findCardIndex clickY pile 0
+      in case cardIndex of
+          Just ci -> Just (index, ci)
+          Nothing -> findClickPosition rest clickX clickY
+  else findClickPosition rest clickX clickY
 
 -- check whether the clicked X coordinate is within the X range of a certain deck
 inPileXRange :: Float -> Int -> Bool
 inPileXRange clickX index =
-    let pileXStart = startX + fromIntegral index * (pileWidth + pileSpacing)
-    in clickX >= pileXStart && clickX <= pileXStart + pileWidth
+  let pileXStart = startX + fromIntegral index * (pileWidth + pileSpacing)
+  in clickX >= pileXStart && clickX <= pileXStart + pileWidth
 
 -- check whether the clicked Y coordinate is within the Y range of a certain deck
 findCardIndex :: Float -> [Card] -> Int -> Maybe Int
 findCardIndex clickY pile index =
-    let totalCards = length pile
-        cardTopY = startY - fromIntegral index * cardSpacing
-    in if index >= totalCards then Nothing
-       else if clickY >= (if index == (totalCards - 1) then cardTopY - cardHeight else cardTopY - cardSpacing) && clickY < cardTopY
-            then Just (totalCards - index - 1)
-       else findCardIndex clickY pile (index + 1)
+  let totalCards = length pile
+      cardTopY = startY - fromIntegral index * cardSpacing
+  in if index >= totalCards then Nothing
+      else if clickY >= (if index == (totalCards - 1) then cardTopY - cardHeight else cardTopY - cardSpacing) && clickY < cardTopY
+          then Just (totalCards - index - 1)
+      else findCardIndex clickY pile (index + 1)
 
 -- check if click on the AI button
-clickOnButton :: Point -> Bool
-clickOnButton (clickX, clickY) =
-  clickX >= buttonX1 && clickX <= buttonX2 && clickY >= buttonY1 && clickY <= buttonY2
+clickOnAIButton :: Point -> Bool
+clickOnAIButton (clickX, clickY) =
+  clickX >= (buttonX1 - weight1/2) && clickX <= (buttonX1 + weight1/2) && clickY >= (buttonY1 - height1/2) && clickY <= (buttonY1 + height1/2)
+
+-- check if click on the hiti button
+clickOnHintButton :: Point -> Bool
+clickOnHintButton (clickX, clickY) =
+  clickX >= (buttonX2 - weight2/2) && clickX <= (buttonX2 + weight2/2) && clickY >= (buttonY2 - height2/2) && clickY <= (buttonY2 + height2/2)
 
 -- only accept data of InternalState type
 applySolution :: InternalState -> [Maybe CardMove] -> InternalState
 applySolution state [] = state
-applySolution state (move:rest) = 
+applySolution state (move:rest) =
   case move of
-    Just cardMove -> 
+    Just cardMove ->
       let newState = performCardMove state cardMove
       in applySolution newState rest
-    Nothing -> 
+    Nothing ->
       let newState = dealCards state
       in applySolution newState rest
 
@@ -220,18 +234,18 @@ loadCardImages (h:t) = do
 -- run the app
 mainGUI :: IO ()
 mainGUI = do
-    initialState <- generateInitialState
-    cBack <- loadBMP "resources/blue.bmp"
-    cImages <- loadCardImages imageFilePaths
-    let resources = GUIResources {
-      cardImages = cImages,
-      cardBackImage = cBack
-    }
-    play window background fps initialState (render resources) handleEvent update
-    where
-        window = InWindow "Spider Solitaire" (1200, 800) (100, 100)
-        background = dark $ dark $ dim green
-        fps = 30
+  initialState <- generateInitialState
+  cBack <- loadBMP "resources/blue.bmp"
+  cImages <- loadCardImages imageFilePaths
+  let resources = GUIResources {
+    cardImages = cImages,
+    cardBackImage = cBack
+  }
+  play window background fps initialState (render resources) handleEvent update
+  where
+      window = InWindow "Spider Solitaire" (1200, 800) (100, 100)
+      background = dark $ dark $ dim green
+      fps = 30
 
 -- draw the game state
 render :: GUIResources -> State -> Picture
@@ -241,4 +255,4 @@ render resources state = drawGame resources (gameState state)
 update :: Float -> State -> State
 update _ state =
     state { gameState = tryToCompleteFoundationPile (gameState state) }
-    
+
