@@ -357,7 +357,9 @@ dealCards state =
                     finishedSets = finishedSets state,
                     position = position state
                 }
-    
+
+-- given a list of cards and the current situation of the piles, distribute the list to each of the pile (on the top of the pile)
+-- in the implementation, it is to take the elements in the list, and each attach to the first place in each pile
 distributedCards:: [Card] -> [[Card]] -> [[Card]]
 distributedCards [] _ = []
 distributedCards _ [] = []
@@ -365,6 +367,7 @@ distributedCards ((num, visible):t) (hp:tp) = ((num, True):hp) : distributedCard
 
 
 -- Returns true iff the list of cards are continuous and visible
+-- by continuous, each card number is 1 larger than the element before
 isContinuous :: [Card] -> Bool
 isContinuous [] = True
 isContinuous [(_,up)] = up
@@ -385,6 +388,7 @@ canChoose state (col,row) =
   let cards = (piles state) !! col
   in (row < (length cards)) && isContinuous (take (row+1) cards)
 
+-- given the piles, return the desired pile of cards
 getColumn:: [[Card]] -> Int -> [Card]
 getColumn [] _ = []
 getColumn (h:t) column
@@ -393,6 +397,8 @@ getColumn (h:t) column
 --    | otherwise = displayPiles (getColumn t (column-1))
     | otherwise = getColumn t (column-1)
 
+-- given the column and the position wanted (only rows), return whether the set of cards is movable
+-- by implementation, there's one remembering the previous card number, one representing the desired position wanted
 comparePile:: [Card] -> Int -> Int -> Bool
 comparePile [] _ _ = trace ("comparePile0") False
 comparePile ((num, visible):t) pre 0
@@ -429,7 +435,6 @@ canActionBePerformed game (Move pile)
     where 
         chosen = getCardNum game (fromJust (position game))
         dest = getCardNum game (pile, 0)
-
 canActionBePerformed game (Deal)
     | (remaining game) == [] = False
     | otherwise = True
@@ -438,7 +443,7 @@ canActionBePerformed game (Deal)
 chooseCard :: InternalState -> Position -> InternalState
 chooseCard game pos = game { position = Just pos }
 
--- get the number of the card given the position
+-- get the number of the card given the position, and the current situation of the state
 getCardNum :: InternalState -> Position -> Int
 -- getCardNum _ Nothing = 0
 getCardNum game (col, row) = getCard (getColumn (piles game) col) row
